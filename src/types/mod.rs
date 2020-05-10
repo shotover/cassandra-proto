@@ -7,6 +7,7 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use crate::error::{column_is_empty_err, Error as CDRSError, Result as CDRSResult};
 use crate::frame::traits::{FromBytes, FromCursor, IntoBytes};
 use crate::types::data_serialization_types::decode_inet;
+use bytes::BufMut;
 
 pub const LONG_STR_LEN: usize = 4;
 pub const SHORT_LEN: usize = 2;
@@ -472,6 +473,12 @@ pub struct CStringList {
 }
 
 impl CStringList {
+    pub fn from_list(list: Vec<String>) -> CStringList {
+        CStringList {
+            list: list.iter().map(|x| {CString::new(x.clone())}).collect()
+        }
+    }
+
     pub fn into_plain(self) -> Vec<String> {
         self.list
             .iter()
@@ -630,6 +637,14 @@ impl IntoBytes for CBytesShort {
 
 /// Cassandra int type.
 pub type CInt = i32;
+
+impl IntoBytes for CInt {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp = Vec::new();
+        temp.put_i32(*self);
+        return temp;
+    }
+}
 
 impl FromCursor for CInt {
     fn from_cursor(mut cursor: &mut Cursor<&[u8]>) -> CDRSResult<CInt> {

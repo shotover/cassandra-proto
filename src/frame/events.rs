@@ -4,11 +4,14 @@ use std::cmp::PartialEq;
 use crate::frame::traits::FromCursor;
 use crate::error;
 use crate::types::{CInet, CString, CStringList};
+use cbytes_macro_derive::IntoCbytes;
+use crate::frame::IntoBytes;
+
 
 // Event types
-const TOPOLOGY_CHANGE: &'static str = "TOPOLOGY_CHANGE";
-const STATUS_CHANGE: &'static str = "STATUS_CHANGE";
-const SCHEMA_CHANGE: &'static str = "SCHEMA_CHANGE";
+pub const TOPOLOGY_CHANGE: &'static str = "TOPOLOGY_CHANGE";
+pub const STATUS_CHANGE: &'static str = "STATUS_CHANGE";
+pub const SCHEMA_CHANGE: &'static str = "SCHEMA_CHANGE";
 
 // Topologe changes
 const NEW_NODE: &'static str = "NEW_NODE";
@@ -174,7 +177,7 @@ impl FromCursor for StatusChangeType {
 }
 
 /// Events related to schema change.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, IntoCbytes)]
 pub struct SchemaChange {
     pub change_type: ChangeType,
     pub target: Target,
@@ -202,6 +205,16 @@ pub enum ChangeType {
     Dropped,
 }
 
+impl IntoBytes for ChangeType {
+    fn into_cbytes(&self) -> Vec<u8> {
+        match self {
+            ChangeType::Created => {Vec::from(CREATED)},
+            ChangeType::Updated => {Vec::from(UPDATED)},
+            ChangeType::Dropped => {Vec::from(DROPPED)},
+        }
+    }
+}
+
 impl FromCursor for ChangeType {
     fn from_cursor(mut cursor: &mut Cursor<&[u8]>) -> error::Result<ChangeType> {
         CString::from_cursor(&mut cursor).and_then(|ct| match ct.as_str() {
@@ -222,6 +235,18 @@ pub enum Target {
     Type,
     Function,
     Aggregate,
+}
+
+impl IntoBytes for Target {
+    fn into_cbytes(&self) -> Vec<u8> {
+        match self {
+            Target::Keyspace => {Vec::from(KEYSPACE)},
+            Target::Table => {Vec::from(TABLE)},
+            Target::Type => {Vec::from(TYPE)},
+            Target::Function => {Vec::from(FUNCTION)},
+            Target::Aggregate => {Vec::from(AGGREGATE)},
+        }
+    }
 }
 
 impl FromCursor for Target {
@@ -249,6 +274,29 @@ pub enum ChangeSchemeOptions {
     /// * the function/aggregate name
     /// * list of strings, one string for each argument type (as CQL type)
     FunctionAggregate((String, String, Vec<String>)),
+}
+
+impl IntoBytes for ChangeSchemeOptions {
+    fn into_cbytes(&self) -> Vec<u8> {
+        match self {
+            ChangeSchemeOptions::Keyspace(keyspace) => {
+                CString::new(keyspace.clone()).into_cbytes()
+            },
+            ChangeSchemeOptions::TableType((keyspace, table)) => {
+                let mut temp: Vec<u8> = Vec::new();
+                temp.extend_from_slice(CString::new(keyspace.clone()).into_cbytes().as_slice());
+                temp.extend_from_slice(CString::new(table.clone()).into_cbytes().as_slice());
+                temp
+            },
+            ChangeSchemeOptions::FunctionAggregate((keyspace, functionname, list)) => {
+                let mut temp: Vec<u8> = Vec::new();
+                temp.extend_from_slice(CString::new(keyspace.clone()).into_cbytes().as_slice());
+                temp.extend_from_slice(CString::new(functionname.clone()).into_cbytes().as_slice());
+                temp.extend_from_slice(CStringList::from_list(list.clone()).into_cbytes().as_slice());
+                temp
+            },
+        }
+    }
 }
 
 impl ChangeSchemeOptions {

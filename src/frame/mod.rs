@@ -34,7 +34,7 @@ use crate::error;
 
 pub use self::traits::*;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct Frame {
     pub version: Version,
     pub flags: Vec<Flag>,
@@ -80,7 +80,7 @@ impl<'a> IntoBytes for Frame {
 }
 
 /// Frame's version
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy)]
 pub enum Version {
     Request,
     Response,
@@ -92,7 +92,7 @@ impl Version {
 
     /// It returns an actual Cassandra request frame version that CDRS can work with.
     /// This version is based on selected feature - on of `v3`, `v4` or `v5`.
-    fn request_version() -> u8 {
+    pub fn request_version() -> u8 {
         if cfg!(feature = "v3") {
             0x03
         } else if cfg!(feature = "v4") || cfg!(feature = "v5") {
@@ -108,7 +108,7 @@ impl Version {
 
     /// It returns an actual Cassandra response frame version that CDRS can work with.
     /// This version is based on selected feature - on of `v3`, `v4` or `v5`.
-    fn response_version() -> u8 {
+    pub fn response_version() -> u8 {
         if cfg!(feature = "v3") {
             0x83
         } else if cfg!(feature = "v4") || cfg!(feature = "v5") {
@@ -169,7 +169,7 @@ impl From<Vec<u8>> for Version {
 
 /// Frame's flag
 // Is not implemented functionality. Only Igonore works for now
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy)]
 pub enum Flag {
     Compression,
     Tracing,
@@ -258,7 +258,7 @@ impl From<u8> for Flag {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy)]
 pub enum Opcode {
     Error,
     Startup,

@@ -3,8 +3,11 @@ use rand;
 use crate::frame::*;
 use crate::frame::events::SimpleServerEvent;
 use crate::types::{CString, CStringList};
+use crate::error;
+use std::io::Cursor;
 
 /// The structure which represents a body of a frame of type `options`.
+#[derive(Debug)]
 pub struct BodyReqRegister {
     pub events: Vec<SimpleServerEvent>,
 }
@@ -16,6 +19,22 @@ impl IntoBytes for BodyReqRegister {
                                     .map(|event| CString::new(event.as_string()))
                                     .collect(), };
         events_string_list.into_cbytes()
+    }
+}
+
+impl FromCursor for BodyReqRegister {
+    fn from_cursor(cursor: &mut Cursor<&[u8]>) -> error::Result<BodyReqRegister> {
+        let list = CStringList::from_cursor(cursor)?;
+        Ok(BodyReqRegister {
+            events: list.into_plain().iter().map(|x| {
+                match x.as_str() {
+                    events::TOPOLOGY_CHANGE => SimpleServerEvent::TopologyChange,
+                    events::STATUS_CHANGE => SimpleServerEvent::StatusChange,
+                    events::SCHEMA_CHANGE => SimpleServerEvent::SchemaChange,
+                    &_ => unreachable!()
+                }
+            }).collect()
+        })
     }
 }
 

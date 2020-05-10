@@ -5,6 +5,10 @@ use crate::error;
 use crate::types::*;
 use crate::types::rows::Row;
 use crate::frame::events::SchemaChange;
+use cbytes_macro_derive::IntoCbytes;
+use num_enum::IntoPrimitive;
+use bytes::BufMut;
+
 
 /// `ResultKind` is enum which represents types of result.
 #[derive(Debug)]
@@ -69,6 +73,38 @@ pub enum ResResultBody {
     Prepared(BodyResResultPrepared),
     /// Schema change body
     SchemaChange(SchemaChange),
+}
+
+impl IntoBytes for ResResultBody {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp: Vec<u8> = Vec::new();
+        match self {
+            ResResultBody::Void(r) => {
+                temp.put_i32(1);
+                temp.append(&mut r.into_cbytes());
+                return temp;
+            },
+            ResResultBody::Rows(r) => {
+                temp.put_i32(2);
+                temp.append(&mut r.into_cbytes());
+                return temp;
+            },
+            ResResultBody::SetKeyspace(r) => {
+                temp.put_i32(3);
+                temp.append(&mut r.into_cbytes());
+                return temp;
+            },
+            ResResultBody::Prepared(r) => {
+                temp.put_i32(4);
+                temp.append(&mut r.into_cbytes());
+                return temp;
+            },
+            ResResultBody::SchemaChange(_) => {
+                temp.put_i32(5);
+                return temp;
+            },
+        }
+    }
 }
 
 impl ResResultBody {
@@ -136,7 +172,7 @@ impl FromCursor for ResResultBody {
 }
 
 /// Body of a response of type Void
-#[derive(Debug, Default)]
+#[derive(Debug, Default, IntoCbytes)]
 pub struct BodyResResultVoid {}
 
 impl FromBytes for BodyResResultVoid {
@@ -155,7 +191,7 @@ impl FromCursor for BodyResResultVoid {
 }
 
 /// It represents set keyspace result body. Body contains keyspace name.
-#[derive(Debug)]
+#[derive(Debug, IntoCbytes)]
 pub struct BodyResResultSetKeyspace {
     /// It contains name of keyspace that was set.
     pub body: CString,
@@ -177,7 +213,7 @@ impl FromCursor for BodyResResultSetKeyspace {
 
 /// Structure that represents result of type
 /// [rows](https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec#L533).
-#[derive(Debug)]
+#[derive(Debug, IntoCbytes)]
 pub struct BodyResResultRows {
     /// Rows metadata
     pub metadata: RowsMetadata,
@@ -202,6 +238,22 @@ impl BodyResResultRows {
                        .collect()
     }
 }
+
+// impl IntoBytes for BodyResResultRows {
+//     fn into_cbytes(&self) -> Vec<u8> {
+//         let mut v: Vec<u8> = vec![];
+//
+//         v.extend_from_slice(self.metadata);
+//         v.extend_from_slice(self.rows_count.into_cbytes());
+//         v.extend_from_slice(self.query.clone().into_cbytes().as_slice());
+//         v.extend_from_slice(self.query_params.into_cbytes().as_slice());
+//         v;
+//
+//
+//
+//         unimplemented!()
+//     }
+// }
 
 impl FromCursor for BodyResResultRows {
     fn from_cursor(mut cursor: &mut Cursor<&[u8]>) -> error::Result<BodyResResultRows> {
@@ -233,6 +285,30 @@ pub struct RowsMetadata {
     pub global_table_space: Option<Vec<CString>>,
     /// List of column specifications.
     pub col_specs: Vec<ColSpec>,
+}
+
+impl IntoBytes for RowsMetadata {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp: Vec<u8> = Vec::new();
+        temp.extend_from_slice(&self.flags.to_be_bytes());
+        temp.extend_from_slice(&self.columns_count.to_be_bytes());
+        if let Some(ref state) = self.paging_state {
+            temp.extend(state.into_cbytes());
+        }
+        if let Some(ref global) = self.global_table_space {
+            temp.extend(global.into_cbytes());
+        }
+        for spec in &self.col_specs {
+            temp.extend(spec.into_cbytes());
+        }
+        return temp;
+    }
+}
+
+impl IntoBytes for i16 {
+    fn into_cbytes(&self) -> Vec<u8> {
+        i_to_n_bytes(*self as i64, 2)
+    }
 }
 
 impl FromCursor for RowsMetadata {
@@ -345,6 +421,43 @@ pub struct ColSpec {
     pub col_type: ColTypeOption,
 }
 
+impl IntoBytes for ColSpec {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp: Vec<u8> = Vec::new();
+        if let Some(ref ksname) = self.ksname {
+            temp.extend(ksname.into_cbytes());
+        }
+        if let Some(ref tablename) = self.tablename {
+            temp.extend(tablename.into_cbytes());
+        }
+        temp.extend(self.name.into_cbytes());
+        temp.extend(self.col_type.into_cbytes());
+        return temp;
+    }
+}
+
+impl<T: IntoBytes> IntoBytes for Option<T>
+{
+    fn into_cbytes(&self) -> Vec<u8> {
+        if let Some(t) = &self {
+            return t.into_cbytes();
+        }
+        vec![]
+    }
+}
+
+
+impl<T: IntoBytes> IntoBytes for Vec<T>
+{
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp: Vec<u8> = Vec::new();
+        for item in self {
+            temp.extend(item.into_cbytes())
+        }
+        temp
+    }
+}
+
 impl ColSpec {
     /// parse_colspecs tables mutable cursor,
     /// number of columns (column_count) and flags that indicates
@@ -380,7 +493,8 @@ impl ColSpec {
 }
 
 /// Cassandra data types which clould be returned by a server.
-#[derive(Debug, Clone)]
+#[derive(IntoPrimitive, Eq, PartialEq, Debug, Copy, Clone)]
+#[repr(u16)]
 pub enum ColType {
     Custom,
     Ascii,
@@ -408,6 +522,43 @@ pub enum ColType {
     Udt,
     Tuple,
     Null,
+}
+
+impl IntoBytes for ColType {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let val: u16 = match self {
+            ColType::Custom => 0x0000,
+            ColType::Ascii => 0x0001,
+            ColType::Bigint => 0x0002,
+            ColType::Blob => 0x0003,
+            ColType::Boolean => 0x0004,
+            ColType::Counter => 0x0005,
+            ColType::Decimal => 0x0006,
+            ColType::Double => 0x0007,
+            ColType::Float => 0x0008,
+            ColType::Int => 0x0009,
+            ColType::Timestamp => 0x000B,
+            ColType::Uuid => 0x000C,
+            ColType::Varchar => 0x000D,
+            ColType::Varint => 0x000E,
+            ColType::Timeuuid => 0x000F,
+            ColType::Inet => 0x0010,
+            ColType::Date => 0x0011,
+            ColType::Time => 0x0012,
+            ColType::Smallint => 0x0013,
+            ColType::Tinyint => 0x0014,
+            ColType::List => 0x0020,
+            ColType::Map => 0x0021,
+            ColType::Set => 0x0022,
+            ColType::Udt => 0x0030,
+            ColType::Tuple => 0x0031,
+            _ => 0x6666,
+        };
+
+        let mut temp = Vec::new();
+        temp.extend_from_slice(&val.to_be_bytes());
+        return temp;
+    }
 }
 
 impl FromBytes for ColType {
@@ -463,6 +614,17 @@ pub struct ColTypeOption {
     pub value: Option<ColTypeOptionValue>,
 }
 
+impl IntoBytes for ColTypeOption {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp: Vec<u8> = Vec::new();
+        temp.extend(self.id.into_cbytes());
+        if let Some(ref val) = self.value {
+            temp.extend(val.into_cbytes());
+        }
+        return temp;
+    }
+}
+
 impl FromCursor for ColTypeOption {
     fn from_cursor(mut cursor: &mut Cursor<&[u8]>) -> error::Result<ColTypeOption> {
         let id = ColType::from_cursor(&mut cursor)?;
@@ -507,6 +669,27 @@ pub enum ColTypeOptionValue {
     CMap((Box<ColTypeOption>, Box<ColTypeOption>)),
 }
 
+
+//TODO: UDT not supported atm
+impl IntoBytes for ColTypeOptionValue {
+    fn into_cbytes(&self) -> Vec<u8> {
+        match self {
+            ColTypeOptionValue::CString(v) => {v.into_cbytes()},
+            ColTypeOptionValue::ColType(v) => {v.into_cbytes()}
+            ColTypeOptionValue::CSet(v) => {v.into_cbytes()}
+            ColTypeOptionValue::CList(v) => {v.into_cbytes()}
+            ColTypeOptionValue::UdtType(_) => {vec![]}
+            ColTypeOptionValue::TupleType(v) => {v.into_cbytes()}
+            ColTypeOptionValue::CMap((v1,v2)) => {
+                let mut temp:Vec<u8> = Vec::new();
+                temp.extend(v1.into_cbytes());
+                temp.extend(v2.into_cbytes());
+                temp
+            }
+        }
+    }
+}
+
 /// User defined type.
 /// [Read more...](https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec#L608)
 #[derive(Debug, Clone)]
@@ -545,6 +728,16 @@ pub struct CTuple {
     pub types: Vec<ColTypeOption>,
 }
 
+impl IntoBytes for CTuple {
+    fn into_cbytes(&self) -> Vec<u8> {
+        let mut temp = Vec::new();
+        for cto in &self.types {
+            temp.extend(cto.into_cbytes());
+        }
+        temp
+    }
+}
+
 impl FromCursor for CTuple {
     fn from_cursor(mut cursor: &mut Cursor<&[u8]>) -> error::Result<CTuple> {
         let n = try_from_bytes(cursor_next_value(&mut cursor, SHORT_LEN as u64)?.as_slice())?;
@@ -559,7 +752,7 @@ impl FromCursor for CTuple {
 }
 
 /// The structure represents a body of a response frame of type `prepared`
-#[derive(Debug)]
+#[derive(Debug, IntoCbytes)]
 pub struct BodyResResultPrepared {
     /// id of prepared request
     pub id: CBytesShort,
@@ -591,6 +784,12 @@ pub struct PreparedMetadata {
     pub pk_indexes: Vec<i16>,
     pub global_table_spec: Option<(CString, CString)>,
     pub col_specs: Vec<ColSpec>,
+}
+
+impl IntoBytes for PreparedMetadata {
+    fn into_cbytes(&self) -> Vec<u8> {
+        unimplemented!()
+    }
 }
 
 impl FromCursor for PreparedMetadata {

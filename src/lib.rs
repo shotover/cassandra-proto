@@ -17,6 +17,8 @@ pub mod types;
 pub mod compression;
 pub mod consistency;
 pub mod error;
+pub mod compressors;
+// mod cbytes_deriver;
 
 pub type Error = error::Error;
 pub type Result<T> = error::Result<T>;

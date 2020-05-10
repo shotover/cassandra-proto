@@ -15,9 +15,16 @@ v4 = []
 appveyor = []
 
 [dependencies]
+bytes = "0.5.*"
 byteorder = "1"
 log = "0.4.1"
 rand = "0.4.1"
 snap = "0.2.3"
 time = "0.1.38"
 uuid = "0.8"
+num_enum = "0.4.2"
+syn = "1.0"
+quote = "1.0"
+serde = "1.0.106"
+
+cbytes_macro_derive = { path = "./cbytes_macro_derive" }
