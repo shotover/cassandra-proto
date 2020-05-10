@@ -6,6 +6,8 @@ use crate::frame::*;
 use crate::consistency::Consistency;
 use crate::types::*;
 use crate::query::{Query, QueryFlags, QueryParams, QueryValues};
+use std::io::Cursor;
+use crate::error;
 
 /// Structure which represents body of Query request
 #[derive(Debug)]
@@ -66,6 +68,17 @@ impl IntoBytes for BodyReqQuery {
         v.extend_from_slice(self.query.clone().into_cbytes().as_slice());
         v.extend_from_slice(self.query_params.into_cbytes().as_slice());
         v
+    }
+}
+
+impl FromCursor for BodyReqQuery {
+    fn from_cursor(cursor: &mut Cursor<&[u8]>) -> error::Result<BodyReqQuery> {
+        let query = CStringLong::from_cursor(cursor)?;
+        let query_params = QueryParams::from_cursor(cursor)?;
+        return Ok(BodyReqQuery {
+            query,
+            query_params
+        })
     }
 }
 

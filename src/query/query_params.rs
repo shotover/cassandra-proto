@@ -1,9 +1,14 @@
 use crate::consistency::Consistency;
-use crate::types::{to_bigint, to_int, to_short, CBytes};
-use crate::frame::AsByte;
+use crate::types::{to_bigint, to_int, to_short, CBytes, CString, cursor_next_value};
+use crate::frame::{AsByte, FromCursor};
 use crate::frame::IntoBytes;
 use super::query_flags::QueryFlags;
 use super::query_values::QueryValues;
+use std::io::Cursor;
+use bytes::Buf;
+use std::collections::HashMap;
+use crate::types::value::{Value, ValueType};
+use crate::error::Error;
 
 /// Parameters of Query for query operation.
 #[derive(Debug, Default)]
@@ -38,7 +43,7 @@ impl QueryParams {
   }
 
   #[allow(dead_code)]
-  fn parse_query_flags(byte: u8) -> Vec<QueryFlags> {
+  pub fn parse_query_flags(byte: u8) -> Vec<QueryFlags> {
     let mut flags: Vec<QueryFlags> = vec![];
 
     if QueryFlags::has_value(byte) {
@@ -64,6 +69,93 @@ impl QueryParams {
     }
 
     flags
+  }
+}
+
+impl FromCursor for QueryParams {
+  fn from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<QueryParams, Error> {
+    let consistency = Consistency::from_cursor(cursor)?;
+    let flags_byte = cursor.get_u8();
+    let flags: Vec<QueryFlags> = QueryParams::parse_query_flags(flags_byte);
+    let mut q_values: Option<QueryValues> = None;
+
+    if QueryFlags::has_value(flags_byte) {
+      let mut map: HashMap<String, Value> = HashMap::new();
+      let mut vec: Vec<Value> = Vec::new();
+      if QueryFlags::has_with_names_for_values(flags_byte) {
+        let number_of_values = cursor.get_u8();
+        for _i in 1.. number_of_values {
+          let name = CString::from_cursor(cursor)?;
+          let value_size = cursor.get_i32();
+          let val_type: Value;
+          if value_size > 0 {
+            val_type = Value::new_normal(cursor_next_value(cursor, value_size as u64)?)
+          } else if value_size == -1 {
+            val_type = Value::new_null();
+          } else if value_size == -2 {
+            val_type = Value::new_not_set();
+          } else {
+            return Err(Error::General(String::from("Could not decode query values")));
+          }
+          map.insert(name.as_plain(), val_type);
+        }
+        q_values = Some(QueryValues::NamedValues(map.clone()));
+      } else {
+        let number_of_values = cursor.get_u8();
+        for _i in 1.. number_of_values {
+          let value_size = cursor.get_i32();
+          let val_type: Value;
+          if value_size > 0 {
+            let body = cursor_next_value(cursor, value_size as u64)?;
+            let l = body.len() as i32;
+            val_type = Value {
+              body,
+              value_type: ValueType::Normal(l)
+            }
+          } else if value_size == -1 {
+            val_type = Value::new_null();
+          } else if value_size == -2 {
+            val_type = Value::new_not_set();
+          } else {
+            return Err(Error::General(String::from("Could not decode query values")));
+          }
+          vec.push(val_type);
+        }
+        q_values = Some(QueryValues::SimpleValues(vec));
+      }
+
+
+    }
+
+    let mut page_size = None;
+    if QueryFlags::has_page_size(flags_byte) {
+      page_size = Some(cursor.get_i32());
+    }
+    let mut page_state = None;
+    if QueryFlags::has_with_paging_state(flags_byte) {
+      page_state = Some(CBytes::from_cursor(cursor)?);
+    }
+
+    let mut serial_consistency = None;
+    if QueryFlags::has_with_serial_consistency(flags_byte) {
+      serial_consistency = Some(Consistency::from_cursor(cursor)?);
+    }
+
+    let mut timestamp = None;
+    if QueryFlags::has_with_default_timestamp(flags_byte) {
+      timestamp = Some(cursor.get_i64());
+    }
+
+    Ok(QueryParams{
+      consistency,
+      flags,
+      with_names: Some(QueryFlags::has_with_names_for_values(flags_byte)),
+      values: q_values,
+      page_size,
+      paging_state: page_state,
+      serial_consistency,
+      timestamp
+    })
   }
 }
 
