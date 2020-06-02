@@ -2,6 +2,8 @@
 use crate::frame::frame_response::ResponseBody;
 use crate::types::to_n_bytes;
 use crate::uuid::Uuid;
+use serde::{Serialize, Deserialize};
+
 
 /// Number of stream bytes in accordance to protocol.
 pub const STREAM_LEN: usize = 2;
@@ -34,16 +36,38 @@ use crate::error;
 
 pub use self::traits::*;
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize)]
 pub struct Frame {
     pub version: Version,
     pub flags: Vec<Flag>,
     pub opcode: Opcode,
     pub stream: u16,
     pub body: Vec<u8>,
+    // #[serde(with = "my_uuid")]
+    #[serde(skip)]
     pub tracing_id: Option<Uuid>,
     pub warnings: Vec<String>,
 }
+
+// mod my_uuid {
+//     use crate::uuid::Uuid;
+//     use serde::{Deserialize, Deserializer, Serializer};
+//
+//     pub fn serialize<S>(val: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
+//         where
+//             S: Serializer,
+//     {
+//         serializer.serialize_bytes(val.as_bytes())
+//     }
+//
+//     pub fn deserialize<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
+//         where
+//             D: Deserializer<'de>,
+//     {
+//         let val: Vec<u8> = Deserialize::deserialize(deserializer)?;
+//         Ok(Uuid::from_bytes(val));
+//     }
+// }
 
 impl Frame {
     pub fn get_body(&self) -> error::Result<ResponseBody> {
@@ -80,7 +104,7 @@ impl<'a> IntoBytes for Frame {
 }
 
 /// Frame's version
-#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy, Serialize, Deserialize)]
 pub enum Version {
     Request,
     Response,
@@ -169,7 +193,7 @@ impl From<Vec<u8>> for Version {
 
 /// Frame's flag
 // Is not implemented functionality. Only Igonore works for now
-#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy, Serialize, Deserialize)]
 pub enum Flag {
     Compression,
     Tracing,
@@ -258,7 +282,7 @@ impl From<u8> for Flag {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Copy, Serialize, Deserialize)]
 pub enum Opcode {
     Error,
     Startup,

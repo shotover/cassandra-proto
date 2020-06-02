@@ -2,10 +2,8 @@ extern crate proc_macro;
 
 use quote::quote;
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Type};
-use syn::DataStruct;
+use syn::{DeriveInput};
 use syn::Data;
-use std::any::Any;
 
 #[proc_macro_derive(IntoCbytes)]
 pub fn into_cbytes_derivce(input: TokenStream) -> TokenStream {
@@ -14,8 +12,8 @@ pub fn into_cbytes_derivce(input: TokenStream) -> TokenStream {
     let mut fields: Vec<proc_macro2::TokenStream> = Vec::new();
 
     match ast.data {
-        Data::Struct(dataStruct ) => {
-            for field in dataStruct.fields {
+        Data::Struct(datastruct) => {
+            for field in datastruct.fields {
                 if let Some(name) = field.ident {
                     //handle Optional types
                     let gen = quote! {
@@ -25,7 +23,7 @@ pub fn into_cbytes_derivce(input: TokenStream) -> TokenStream {
                     fields.push(gen);
                 }
             }
-        },
+        }
         _ => {}
     }
 

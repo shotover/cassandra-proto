@@ -17,8 +17,8 @@ use crate::types::{ByIndex, ByName, CBytes, IntoRustByIndex, IntoRustByName};
 
 #[derive(Clone, Debug)]
 pub struct Row {
-    metadata: RowsMetadata,
-    row_content: Vec<CBytes>,
+    pub metadata: RowsMetadata,
+    pub row_content: Vec<CBytes>,
 }
 
 impl Row {

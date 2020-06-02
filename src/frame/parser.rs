@@ -7,7 +7,7 @@ use crate::frame::frame_response::ResponseBody;
 use crate::frame::FromCursor;
 use crate::types::data_serialization_types::decode_timeuuid;
 use crate::types::{from_bytes, from_u16_bytes, CStringList, UUID_LEN};
-use bytes::{BytesMut, Buf};
+use bytes::{BytesMut};
 
 #[derive(Debug, Clone)]
 pub struct FrameHeader {
@@ -29,18 +29,18 @@ where
     // Make sure we have enough data
     let head_len = 9;
     let max_frame_len = 1024 * 1024 * 15; //15MB
-    let mut frame_header: FrameHeader;
+    let frame_header: FrameHeader;
 
     if src.len() < head_len {
         // Not enough data to read the head
         return Ok((None, None));
     }
 
-    let mut version:  Version;
-    let mut flags: Vec<Flag>;
-    let mut stream: u16;
-    let mut opcode : Opcode;
-    let mut length : usize;
+    let version:  Version;
+    let flags: Vec<Flag>;
+    let stream: u16;
+    let opcode : Opcode;
+    let length : usize;
 
     // if we have a previous frame header, use that instead
     //
@@ -149,7 +149,8 @@ where
     };
 
     src.reserve(head_len);
-    convert_frame_into_result(frame)
+    // convert_frame_into_result(frame)
+    Ok((Some(frame), None))
 }
 
 fn convert_frame_into_result(frame: Frame) -> error::Result<(Option<Frame>, Option<FrameHeader>)> {
