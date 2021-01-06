@@ -15,7 +15,7 @@ v4 = []
 appveyor = []
 
 [dependencies]
-bytes = "0.5.*"
+bytes = "1.0.0"
 byteorder = "1"
 log = "0.4.1"
 rand = "0.4.1"
