@@ -67,11 +67,15 @@ where
         cursor.read_exact(&mut opcode_bytes)?;
         cursor.read_exact(&mut length_bytes)?;
 
-        version = Version::from(version_bytes.to_vec());
         flags = Flag::get_collection(flag_bytes[0]);
         stream = from_u16_bytes(&stream_bytes);
         opcode = Opcode::from(opcode_bytes[0]);
         length = from_bytes(&length_bytes) as usize;
+        version = if opcode.as_byte( ) == Opcode::Options.as_byte() {
+            Version::request
+        } else {
+            Version::from(version_bytes.to_vec())
+        }
     }
 
     frame_header = FrameHeader {
