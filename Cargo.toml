@@ -15,7 +15,7 @@ v4 = []
 appveyor = []
 
 [dependencies]
-bytes = "0.5.*"
+bytes = "1.0.0"
 byteorder = "1"
 log = "0.4.1"
 rand = "0.4.1"
@@ -25,6 +25,6 @@ uuid = "0.8"
 num_enum = "0.4.2"
 syn = "1.0"
 quote = "1.0"
-serde = "1.0.106"
+serde = { version = "1.0.*", features = ["serde_derive"]}
 
 cbytes_macro_derive = { path = "./cbytes_macro_derive" }

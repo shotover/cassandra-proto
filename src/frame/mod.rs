@@ -1,6 +1,6 @@
 //! `frame` module contains general Frame functionality.
 use crate::frame::frame_response::ResponseBody;
-use crate::types::to_n_bytes;
+use crate::types::{to_n_bytes, CStringList};
 use crate::uuid::Uuid;
 use serde::{Serialize, Deserialize};
 
@@ -86,18 +86,29 @@ impl Frame {
 impl<'a> IntoBytes for Frame {
     fn into_cbytes(&self) -> Vec<u8> {
         let mut v = vec![];
+        let mut body = vec![];
 
         let version_bytes = self.version.as_byte();
         let flag_bytes = Flag::many_to_cbytes(&self.flags);
         let opcode_bytes = self.opcode.as_byte();
-        let body_len = self.body.len();
 
         v.push(version_bytes);
         v.push(flag_bytes);
         v.extend_from_slice(to_n_bytes(self.stream as u64, STREAM_LEN).as_slice());
         v.push(opcode_bytes);
-        v.extend_from_slice(to_n_bytes(body_len as u64, LENGTH_LEN).as_slice());
-        v.extend_from_slice(self.body.as_slice());
+
+        //Build body
+        if let Some(tracing) = self.tracing_id {
+            body.extend_from_slice(tracing.as_bytes())
+        }
+        if self.warnings.len() > 0 {
+            body.extend_from_slice(&*CStringList::from_list(self.warnings.clone()).into_cbytes())
+        }
+        body.extend_from_slice(self.body.as_slice());
+
+        //Write body
+        v.extend_from_slice(to_n_bytes(body.len() as u64, LENGTH_LEN).as_slice());
+        v.extend_from_slice(body.as_slice());
 
         v
     }
