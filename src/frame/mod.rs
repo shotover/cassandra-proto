@@ -108,6 +108,7 @@ impl<'a> IntoBytes for Frame {
 pub enum Version {
     Request,
     Response,
+    Other( u8 )
 }
 
 impl Version {
@@ -171,6 +172,7 @@ impl From<Vec<u8>> for Version {
             );
         }
         let version = v[0];
+
         let req = Version::request_version();
         let res = Version::response_version();
 
@@ -179,14 +181,7 @@ impl From<Vec<u8>> for Version {
         } else if version == res {
             Version::Response
         } else {
-            error!(
-                "Unexpected Cassandra version {:?}, either {:?} or {:?} is expected",
-                version, req, res
-            );
-            panic!(
-                "Unexpected Cassandra version {:?}, either {:?} or {:?} is expected",
-                version, req, res
-            );
+            Version::Other( version )
         }
     }
 }
