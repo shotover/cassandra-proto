@@ -25,6 +25,6 @@ uuid = "0.8"
 num_enum = "0.4.2"
 syn = "1.0"
 quote = "1.0"
-serde = "1.0.106"
+serde = { version = "1.0.106", features = ["derive"] }
 
 cbytes_macro_derive = { path = "./cbytes_macro_derive" }

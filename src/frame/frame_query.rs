@@ -2,12 +2,12 @@
 //! Contains Query Frame related functionality.
 use rand;
 
-use crate::frame::*;
 use crate::consistency::Consistency;
-use crate::types::*;
-use crate::query::{Query, QueryFlags, QueryParams, QueryValues};
-use std::io::Cursor;
 use crate::error;
+use crate::frame::*;
+use crate::query::{Query, QueryFlags, QueryParams, QueryValues};
+use crate::types::*;
+use std::io::Cursor;
 
 /// Structure which represents body of Query request
 #[derive(Debug)]
@@ -20,15 +20,16 @@ pub struct BodyReqQuery {
 
 impl BodyReqQuery {
     // Fabric function that produces Query request body.
-    fn new(query: String,
-           consistency: Consistency,
-           values: Option<QueryValues>,
-           with_names: Option<bool>,
-           page_size: Option<i32>,
-           paging_state: Option<CBytes>,
-           serial_consistency: Option<Consistency>,
-           timestamp: Option<i64>)
-           -> BodyReqQuery {
+    fn new(
+        query: String,
+        consistency: Consistency,
+        values: Option<QueryValues>,
+        with_names: Option<bool>,
+        page_size: Option<i32>,
+        paging_state: Option<CBytes>,
+        serial_consistency: Option<Consistency>,
+        timestamp: Option<i64>,
+    ) -> BodyReqQuery {
         // query flags
         let mut flags: Vec<QueryFlags> = vec![];
         if values.is_some() {
@@ -50,15 +51,19 @@ impl BodyReqQuery {
             flags.push(QueryFlags::WithDefaultTimestamp);
         }
 
-        BodyReqQuery { query: CStringLong::new(query),
-                       query_params: QueryParams { consistency,
-                                                   flags,
-                                                   with_names,
-                                                   values,
-                                                   page_size,
-                                                   paging_state,
-                                                   serial_consistency,
-                                                   timestamp, }, }
+        BodyReqQuery {
+            query: CStringLong::new(query),
+            query_params: QueryParams {
+                consistency,
+                flags,
+                with_names,
+                values,
+                page_size,
+                paging_state,
+                serial_consistency,
+                timestamp,
+            },
+        }
     }
 }
 
@@ -77,8 +82,8 @@ impl FromCursor for BodyReqQuery {
         let query_params = QueryParams::from_cursor(cursor)?;
         return Ok(BodyReqQuery {
             query,
-            query_params
-        })
+            query_params,
+        });
     }
 }
 
@@ -86,48 +91,55 @@ impl FromCursor for BodyReqQuery {
 
 impl Frame {
     /// **Note:** This function should be used internally for building query request frames.
-    pub fn new_req_query(query: String,
-                         consistency: Consistency,
-                         values: Option<QueryValues>,
-                         with_names: Option<bool>,
-                         page_size: Option<i32>,
-                         paging_state: Option<CBytes>,
-                         serial_consistency: Option<Consistency>,
-                         timestamp: Option<i64>,
-                         flags: Vec<Flag>)
-                         -> Frame {
+    pub fn new_req_query(
+        query: String,
+        consistency: Consistency,
+        values: Option<QueryValues>,
+        with_names: Option<bool>,
+        page_size: Option<i32>,
+        paging_state: Option<CBytes>,
+        serial_consistency: Option<Consistency>,
+        timestamp: Option<i64>,
+        flags: Vec<Flag>,
+    ) -> Frame {
         let version = Version::Request;
         let stream = rand::random::<u16>();
         let opcode = Opcode::Query;
-        let body = BodyReqQuery::new(query,
-                                     consistency,
-                                     values,
-                                     with_names,
-                                     page_size,
-                                     paging_state,
-                                     serial_consistency,
-                                     timestamp);
+        let body = BodyReqQuery::new(
+            query,
+            consistency,
+            values,
+            with_names,
+            page_size,
+            paging_state,
+            serial_consistency,
+            timestamp,
+        );
 
-        Frame { version: version,
-                flags: flags,
-                stream: stream,
-                opcode: opcode,
-                body: body.into_cbytes(),
-                // for request frames it's always None
-                tracing_id: None,
-                warnings: vec![], }
+        Frame {
+            version: version,
+            flags: flags,
+            stream: stream,
+            opcode: opcode,
+            body: body.into_cbytes(),
+            // for request frames it's always None
+            tracing_id: None,
+            warnings: vec![],
+        }
     }
 
     /// **Note:** This function should be used internally for building query request frames.
     pub fn new_query(query: Query, flags: Vec<Flag>) -> Frame {
-        Frame::new_req_query(query.query,
-                             query.params.consistency,
-                             query.params.values,
-                             query.params.with_names,
-                             query.params.page_size,
-                             query.params.paging_state,
-                             query.params.serial_consistency,
-                             query.params.timestamp,
-                             flags)
+        Frame::new_req_query(
+            query.query,
+            query.params.consistency,
+            query.params.values,
+            query.params.with_names,
+            query.params.page_size,
+            query.params.paging_state,
+            query.params.serial_consistency,
+            query.params.timestamp,
+            flags,
+        )
     }
 }

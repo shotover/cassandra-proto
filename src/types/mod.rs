@@ -3,10 +3,10 @@ use std::io;
 use std::io::{Cursor, Read};
 use std::net::SocketAddr;
 
-use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use crate::error::{column_is_empty_err, Error as CDRSError, Result as CDRSResult};
 use crate::frame::traits::{FromBytes, FromCursor, IntoBytes};
 use crate::types::data_serialization_types::decode_inet;
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use bytes::BufMut;
 
 pub const LONG_STR_LEN: usize = 4;
@@ -27,8 +27,6 @@ pub mod udt;
 pub mod value;
 
 pub mod prelude {
-    pub use crate::error::{Error, Result};
-    pub use crate::frame::{TryFromRow, TryFromUDT};
     pub use super::blob::Blob;
     pub use super::decimal::Decimal;
     pub use super::list::List;
@@ -38,6 +36,8 @@ pub mod prelude {
     pub use super::udt::UDT;
     pub use super::value::{Bytes, Value};
     pub use super::AsRustType;
+    pub use crate::error::{Error, Result};
+    pub use crate::frame::{TryFromRow, TryFromUDT};
 }
 
 /// Should be used to represent a single column as a Rust value.
@@ -475,7 +475,7 @@ pub struct CStringList {
 impl CStringList {
     pub fn from_list(list: Vec<String>) -> CStringList {
         CStringList {
-            list: list.iter().map(|x| {CString::new(x.clone())}).collect()
+            list: list.iter().map(|x| CString::new(x.clone())).collect(),
         }
     }
 
@@ -911,5 +911,4 @@ mod tests {
         assert_eq!(to_varint(-128), vec![0x80]);
         assert_eq!(to_varint(-129), vec![0xFF, 0x7F]);
     }
-
 }

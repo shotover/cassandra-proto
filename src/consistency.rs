@@ -267,5 +267,4 @@ mod tests {
             Consistency::LocalOne
         );
     }
-
 }

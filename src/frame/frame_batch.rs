@@ -1,10 +1,10 @@
 use rand;
 
-use super::{Frame, Flag, IntoBytes, AsByte, FromSingleByte, Opcode, Version};
-use crate::query::QueryFlags;
-use crate::types::*;
+use super::{AsByte, Flag, Frame, FromSingleByte, IntoBytes, Opcode, Version};
 use crate::consistency::Consistency;
+use crate::query::QueryFlags;
 use crate::query::QueryValues;
+use crate::types::*;
 
 /// `BodyResReady`
 #[derive(Debug, Clone)]
@@ -34,8 +34,10 @@ impl IntoBytes for BodyReqBatch {
 
         bytes.extend_from_slice(self.consistency.into_cbytes().as_slice());
 
-        let flag_byte = self.query_flags.iter()
-                            .fold(0, |mut _bytes, f| _bytes | f.as_byte());
+        let flag_byte = self
+            .query_flags
+            .iter()
+            .fold(0, |mut _bytes, f| _bytes | f.as_byte());
         bytes.push(flag_byte);
 
         if let Some(ref serial_consistency) = self.serial_consistency {
@@ -144,13 +146,15 @@ impl Frame {
         let stream = rand::random::<u16>();
         let opcode = Opcode::Batch;
 
-        Frame { version: version,
-                flags: flags,
-                stream: stream,
-                opcode: opcode,
-                body: query.into_cbytes(),
-                // for request frames it's always None
-                tracing_id: None,
-                warnings: vec![], }
+        Frame {
+            version: version,
+            flags: flags,
+            stream: stream,
+            opcode: opcode,
+            body: query.into_cbytes(),
+            // for request frames it's always None
+            tracing_id: None,
+            warnings: vec![],
+        }
     }
 }

@@ -1,9 +1,9 @@
 use rand;
 
-use crate::frame::*;
-use crate::frame::events::SimpleServerEvent;
-use crate::types::{CString, CStringList};
 use crate::error;
+use crate::frame::events::SimpleServerEvent;
+use crate::frame::*;
+use crate::types::{CString, CStringList};
 use std::io::Cursor;
 
 /// The structure which represents a body of a frame of type `options`.
@@ -14,10 +14,13 @@ pub struct BodyReqRegister {
 
 impl IntoBytes for BodyReqRegister {
     fn into_cbytes(&self) -> Vec<u8> {
-        let events_string_list =
-            CStringList { list: self.events.iter()
-                                    .map(|event| CString::new(event.as_string()))
-                                    .collect(), };
+        let events_string_list = CStringList {
+            list: self
+                .events
+                .iter()
+                .map(|event| CString::new(event.as_string()))
+                .collect(),
+        };
         events_string_list.into_cbytes()
     }
 }
@@ -26,14 +29,16 @@ impl FromCursor for BodyReqRegister {
     fn from_cursor(cursor: &mut Cursor<&[u8]>) -> error::Result<BodyReqRegister> {
         let list = CStringList::from_cursor(cursor)?;
         Ok(BodyReqRegister {
-            events: list.into_plain().iter().map(|x| {
-                match x.as_str() {
+            events: list
+                .into_plain()
+                .iter()
+                .map(|x| match x.as_str() {
                     events::TOPOLOGY_CHANGE => SimpleServerEvent::TopologyChange,
                     events::STATUS_CHANGE => SimpleServerEvent::StatusChange,
                     events::SCHEMA_CHANGE => SimpleServerEvent::SchemaChange,
-                    &_ => unreachable!()
-                }
-            }).collect()
+                    &_ => unreachable!(),
+                })
+                .collect(),
         })
     }
 }
@@ -49,13 +54,15 @@ impl Frame {
         let opcode = Opcode::Register;
         let register_body = BodyReqRegister { events: events };
 
-        Frame { version: version,
-                flags: vec![flag],
-                stream: stream,
-                opcode: opcode,
-                body: register_body.into_cbytes(),
-                // for request frames it's always None
-                tracing_id: None,
-                warnings: vec![], }
+        Frame {
+            version: version,
+            flags: vec![flag],
+            stream: stream,
+            opcode: opcode,
+            body: register_body.into_cbytes(),
+            // for request frames it's always None
+            tracing_id: None,
+            warnings: vec![],
+        }
     }
 }

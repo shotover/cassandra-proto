@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
-use crate::frame::FromCursor;
 use crate::error;
+use crate::frame::FromCursor;
 
 /// `BodyReqAuthSuccess` is a frame that represents a successfull authentication response.
 #[derive(Debug, PartialEq)]
@@ -15,9 +15,9 @@ impl FromCursor for BodyReqAuthSuccess {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::*;
     use crate::frame::traits::FromCursor;
+    use std::io::Cursor;
 
     #[test]
     fn test_name() {

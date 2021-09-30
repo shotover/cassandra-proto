@@ -2,8 +2,7 @@
 use crate::frame::frame_response::ResponseBody;
 use crate::types::to_n_bytes;
 use crate::uuid::Uuid;
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 /// Number of stream bytes in accordance to protocol.
 pub const STREAM_LEN: usize = 2;
@@ -43,7 +42,7 @@ pub struct Frame {
     pub opcode: Opcode,
     pub stream: u16,
     pub body: Vec<u8>,
-    //#[serde(skip)]
+    #[serde(skip)]
     pub tracing_id: Option<Uuid>,
     pub warnings: Vec<String>,
 }
@@ -87,7 +86,7 @@ impl<'a> IntoBytes for Frame {
 pub enum Version {
     Request,
     Response,
-    Other( u8 )
+    Other(u8),
 }
 
 impl Version {
@@ -132,12 +131,13 @@ impl AsByte for Version {
         match self {
             &Version::Request => Version::request_version(),
             &Version::Response => Version::response_version(),
+            &Version::Other(code) => code,
         }
     }
 }
 
 impl From<u8> for Version {
-    fn from(v:u8) -> Version {
+    fn from(v: u8) -> Version {
         let req = Version::request_version();
         let res = Version::response_version();
 
@@ -146,7 +146,7 @@ impl From<u8> for Version {
         } else if v == res {
             Version::Response
         } else {
-            Version::Other( v)
+            Version::Other(v)
         }
     }
 }
@@ -174,7 +174,7 @@ impl From<Vec<u8>> for Version {
         } else if version == res {
             Version::Response
         } else {
-            Version::Other( version )
+            Version::Other(version)
         }
     }
 }

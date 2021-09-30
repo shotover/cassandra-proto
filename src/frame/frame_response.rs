@@ -1,19 +1,21 @@
 use std::io::Cursor;
 
-use crate::frame::FromCursor;
 use crate::error;
-use crate::frame::Opcode;
-use crate::frame::frame_result::{BodyResResultPrepared, BodyResResultRows, BodyResResultSetKeyspace,
-                          BodyResResultVoid, ResResultBody, RowsMetadata};
-use crate::frame::frame_event::BodyResEvent;
-use crate::frame::frame_error::CDRSError;
-use crate::frame::frame_supported::*;
 use crate::frame::frame_auth_challenge::*;
-use crate::frame::frame_authenticate::BodyResAuthenticate;
 use crate::frame::frame_auth_success::BodyReqAuthSuccess;
-use crate::types::rows::Row;
+use crate::frame::frame_authenticate::BodyResAuthenticate;
+use crate::frame::frame_error::CDRSError;
+use crate::frame::frame_event::BodyResEvent;
 use crate::frame::frame_query::BodyReqQuery;
 use crate::frame::frame_register::BodyReqRegister;
+use crate::frame::frame_result::{
+    BodyResResultPrepared, BodyResResultRows, BodyResResultSetKeyspace, BodyResResultVoid,
+    ResResultBody, RowsMetadata,
+};
+use crate::frame::frame_supported::*;
+use crate::frame::FromCursor;
+use crate::frame::Opcode;
+use crate::types::rows::Row;
 
 #[derive(Debug)]
 pub enum ResponseBody {

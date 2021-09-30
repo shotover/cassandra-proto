@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
 use crate::frame::frame_result::{ColType, ColTypeOption, ColTypeOptionValue};
-use std::net::IpAddr;
 use crate::types::blob::Blob;
 use crate::types::data_serialization_types::*;
 use crate::types::decimal::Decimal;
@@ -8,6 +7,7 @@ use crate::types::map::Map;
 use crate::types::tuple::Tuple;
 use crate::types::udt::UDT;
 use crate::types::{AsRust, AsRustType, CBytes};
+use std::net::IpAddr;
 use uuid::Uuid;
 
 // TODO: consider using pointers to ColTypeOption and Vec<CBytes> instead of owning them.

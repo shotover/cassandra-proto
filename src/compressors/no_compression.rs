@@ -10,7 +10,7 @@ impl NoCompression {
     }
 }
 
-impl Compressor for NoCompression<> {
+impl Compressor for NoCompression {
     type CompressorError = Error;
 
     fn encode(&self, bytes: Vec<u8>) -> Result<Vec<u8>, Self::CompressorError> {

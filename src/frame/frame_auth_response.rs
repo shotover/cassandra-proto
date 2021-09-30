@@ -1,7 +1,7 @@
 use rand;
 
-use crate::types::CBytes;
 use crate::frame::*;
+use crate::types::CBytes;
 
 #[derive(Debug)]
 pub struct BodyReqAuthResponse {
@@ -31,22 +31,24 @@ impl Frame {
         let opcode = Opcode::AuthResponse;
         let body = BodyReqAuthResponse::new(CBytes::new(bytes));
 
-        Frame { version: version,
-                flags: vec![flag],
-                stream: stream,
-                opcode: opcode,
-                body: body.into_cbytes(),
-                // for request frames it's always None
-                tracing_id: None,
-                warnings: vec![], }
+        Frame {
+            version: version,
+            flags: vec![flag],
+            stream: stream,
+            opcode: opcode,
+            body: body.into_cbytes(),
+            // for request frames it's always None
+            tracing_id: None,
+            warnings: vec![],
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::CBytes;
     use crate::frame::traits::IntoBytes;
+    use crate::types::CBytes;
 
     #[test]
     fn body_req_auth_response() {

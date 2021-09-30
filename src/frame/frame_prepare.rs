@@ -1,7 +1,7 @@
 use rand;
 
-use crate::types::*;
 use crate::frame::*;
+use crate::types::*;
 
 /// Struct that represents a body of a frame of type `prepare`
 #[derive(Debug)]
@@ -12,7 +12,9 @@ pub struct BodyReqPrepare {
 impl BodyReqPrepare {
     /// Creates new body of a frame of type `prepare` that prepares query `query`.
     pub fn new(query: String) -> BodyReqPrepare {
-        BodyReqPrepare { query: CStringLong::new(query), }
+        BodyReqPrepare {
+            query: CStringLong::new(query),
+        }
     }
 }
 
@@ -30,13 +32,15 @@ impl Frame {
         let opcode = Opcode::Prepare;
         let body = BodyReqPrepare::new(query);
 
-        Frame { version: version,
-                flags: flags,
-                stream: stream,
-                opcode: opcode,
-                body: body.into_cbytes(),
-                // for request frames it's always None
-                tracing_id: None,
-                warnings: vec![], }
+        Frame {
+            version: version,
+            flags: flags,
+            stream: stream,
+            opcode: opcode,
+            body: body.into_cbytes(),
+            // for request frames it's always None
+            tracing_id: None,
+            warnings: vec![],
+        }
     }
 }

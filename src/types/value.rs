@@ -321,5 +321,4 @@ mod tests {
         let value = Value::new_normal(1 as u8);
         assert_eq!(value.into_cbytes(), vec![0, 0, 0, 1, 1]);
     }
-
 }
