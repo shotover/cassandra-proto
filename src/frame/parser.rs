@@ -1,8 +1,6 @@
 use super::*;
 use crate::compression::Compressor;
-use crate::error;
 use crate::frame::frame_error::{AdditionalErrorInfo, CDRSError, SimpleError};
-use crate::frame::frame_response::ResponseBody;
 use crate::frame::FromCursor;
 use crate::types::data_serialization_types::decode_timeuuid;
 use crate::types::CString;
@@ -295,12 +293,12 @@ fn extract_body(cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, CDRSError> {
     }
 }
 
-fn convert_frame_into_result(frame: Frame) -> error::Result<(Option<Frame>, Option<FrameHeader>)> {
-    match frame.opcode {
-        Opcode::Error => frame.get_body().and_then(|err| match err {
-            ResponseBody::Error(err) => Err(error::Error::Server(err)),
-            _ => unreachable!(),
-        }),
-        _ => Ok((Some(frame), None)),
-    }
-}
+//fn convert_frame_into_result(frame: Frame) -> error::Result<(Option<Frame>, Option<FrameHeader>)> {
+//    match frame.opcode {
+//        Opcode::Error => frame.get_body().and_then(|err| match err {
+//            ResponseBody::Error(err) => Err(error::Error::Server(err)),
+//            _ => unreachable!(),
+//        }),
+//        _ => Ok((Some(frame), None)),
+//    }
+//}

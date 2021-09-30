@@ -53,7 +53,7 @@ where
     let full_body = if flags.iter().any(|flag| flag == &Flag::Compression) {
         compressor
             .decode(body_bytes)
-            .map_err(|err| error::Error::from(err.description()))?
+            .map_err(|err| error::Error::from(err.to_string()))?
     } else {
         body_bytes
     };
