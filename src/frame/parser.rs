@@ -16,7 +16,7 @@ use uuid;
 #[derive(Debug, Clone)]
 pub struct FrameHeader {
     version:  Version,
-    flags: Vec<Flag>,
+    flags: u8, //Vec<Flag>,
     stream: u16,
     opcode : Opcode,
     length : usize,
@@ -52,9 +52,13 @@ fn read_header( src : & mut BytesMut ) -> Result<Option<FrameHeader>,CDRSError> 
     // we have at least one byte so read the version.  We read the version byte first so that
     // we can handle versions that have a different header size properly by reporting them as
     // invalid or unsupported.
-    let version = match src.first()  {
-        Some(x) => match Version::from(*x) {
-            Version::Other(c) => return Err(make_protocol_error("Invalid or unsupported protocol version")),
+    let version : Version = match src.first()  {
+        Some(x) => {
+            v = Version::from(*x);
+                match v {
+                Version::Other(c) => return Err(make_protocol_error("Invalid or unsupported protocol version")),
+                _ => v,
+            }
         },
         // no first byte -- should not happen as we already checked buffer length
         None    => return Err(make_server_error( "Can not read protocol version" )),
@@ -87,7 +91,7 @@ fn read_header( src : & mut BytesMut ) -> Result<Option<FrameHeader>,CDRSError> 
 
      Ok(Some(FrameHeader {
         version,
-        flags: Flag::get_collection(flag_bytes[0]),
+        flags: flag_bytes[0],
         stream: from_u16_bytes(&stream_bytes),
         opcode: Opcode::from(opcode_bytes[0]),
         length: header_length,
@@ -115,7 +119,7 @@ fn read_header( src : & mut BytesMut ) -> Result<Option<FrameHeader>,CDRSError> 
 /// * `frame_header_original - The frame header extracted in an earlier attempt to construct this
 /// frame.
 pub fn parse_frame<E>(
-    src: & mut BytesMut,
+    mut src: & mut BytesMut,
     compressor: &dyn Compressor<CompressorError = E>,
     frame_header_original: &Option<FrameHeader>
 ) -> Result<(Option<Frame>,Option<FrameHeader>), CDRSError>
@@ -128,14 +132,13 @@ where
     // If the frame_header_original is set then we are trying to parse the data
     // and have already extracted the header.
 
-    let mut frame_header : FrameHeader = match frame_header_original {
-        Some(x) => *x,
+    let &mut frame_header : &FrameHeader = match frame_header_original {
+        Some(x) => x,
        None => match read_header( src ).ok(){
            Some(x) => x,
            None => return Ok((None,None)),
        },
     };
-    
 
     // check that there buffer contains all the bytes for the body.
     if src.len() < frame_header.length {
@@ -149,7 +152,7 @@ where
 
     let frame = Frame {
         version : frame_header.version,
-        flags : frame_header.flags,
+        flags : Flag::get_collection(frame_header.flags),
         stream : frame_header.stream,
         opcode : frame_header.opcode,
         tracing_id: extract_tracing_id( &frame_header, &mut body_cursor )?,
@@ -186,10 +189,10 @@ fn read_body<E>( frame_header : & FrameHeader,  compressor: &dyn Compressor<Comp
 
     cursor.read_exact(&mut body_bytes).map_err( |x| make_server_error( &x.to_string()));
 
-    Ok(if frame_header.flags.iter().any(|flag| flag == &Flag::Compression) {
+    Ok(if Flag::has_compression(frame_header.flags) {
         compressor
             .decode(body_bytes)
-           .map_err( |x| make_server_error( &x.to_string()));
+           .map_err( |x| make_server_error( &x.to_string()))?
     } else {
         body_bytes
     })
@@ -206,15 +209,15 @@ fn read_body<E>( frame_header : & FrameHeader,  compressor: &dyn Compressor<Comp
 fn extract_tracing_id(  frame_header :  & FrameHeader,  cursor : &mut Cursor<&[u8]>  ) -> Result<Option<uuid::Uuid>,CDRSError> {
     // Use cursor to get tracing id, warnings and actual body
 
-    Ok(if frame_header.flags.iter().any(|flag| flag == &Flag::Tracing) {
+    if Flag::has_tracing( frame_header.flags) {
         let mut tracing_bytes = [ 0 as u8; UUID_LEN ];
 
         cursor.read_exact(&mut tracing_bytes).map_err( |x| make_server_error( &x.to_string()));
 
-        decode_timeuuid(&tracing_bytes).map_err( |x| make_server_error( &x.to_string()))
+        decode_timeuuid(&tracing_bytes).map( |x| Some(x) ).map_err( |x| make_server_error( &x.to_string()))
     } else {
         None
-    })
+    }
 }
 
 /// Extracts the warnings from the current cursor position if the `frame_header.flags` contains
@@ -225,10 +228,10 @@ fn extract_tracing_id(  frame_header :  & FrameHeader,  cursor : &mut Cursor<&[u
 /// * `frame_header` - The header for the frame being parsed.
 /// * `cursor` - The cursor to read the warnings from.
 ///
-fn extract_warnings( frame_header :  & FrameHeader, cursor :  &mut Cursor<&[u8]> ) -> Result<Vec<String>,CDRSError> {
+fn extract_warnings(frame_header :  & FrameHeader, cursor: &mut Cursor<&[u8]>) -> Result<Vec<String>,CDRSError> {
     Ok(
-    if frame_header.flags.iter().any(|flag| flag == &Flag::Warning) {
-        CStringList::from_cursor(&mut cursor)
+    if Flag::has_warning(frame_header.flags) {
+        CStringList::from_cursor( cursor)
             .map_err( |x| make_server_error( &x.to_string()))
             .ok()
             .into_plain()
