@@ -43,31 +43,10 @@ pub struct Frame {
     pub opcode: Opcode,
     pub stream: u16,
     pub body: Vec<u8>,
-    // #[serde(with = "my_uuid")]
-    #[serde(skip)]
+    //#[serde(skip)]
     pub tracing_id: Option<Uuid>,
     pub warnings: Vec<String>,
 }
-
-// mod my_uuid {
-//     use crate::uuid::Uuid;
-//     use serde::{Deserialize, Deserializer, Serializer};
-//
-//     pub fn serialize<S>(val: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
-//         where
-//             S: Serializer,
-//     {
-//         serializer.serialize_bytes(val.as_bytes())
-//     }
-//
-//     pub fn deserialize<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
-//         where
-//             D: Deserializer<'de>,
-//     {
-//         let val: Vec<u8> = Deserialize::deserialize(deserializer)?;
-//         Ok(Uuid::from_bytes(val));
-//     }
-// }
 
 impl Frame {
     pub fn get_body(&self) -> error::Result<ResponseBody> {
@@ -157,6 +136,20 @@ impl AsByte for Version {
     }
 }
 
+impl From<u8> for Version {
+    fn from(v:u8) -> Version {
+        let req = Version::request_version();
+        let res = Version::response_version();
+
+        if v == req {
+            Version::Request
+        } else if v == res {
+            Version::Response
+        } else {
+            Version::Other( v)
+        }
+    }
+}
 impl From<Vec<u8>> for Version {
     fn from(v: Vec<u8>) -> Version {
         if v.len() != Self::BYTE_LENGTH {
