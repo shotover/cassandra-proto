@@ -154,12 +154,12 @@ impl From<Vec<u8>> for Version {
     fn from(v: Vec<u8>) -> Version {
         if v.len() != Self::BYTE_LENGTH {
             error!(
-                "Unexpected Cassandra verion. Should has {} byte(-s), got {:?}",
+                "Unexpected Cassandra version. Should has {} byte(-s), got {:?}",
                 Self::BYTE_LENGTH,
                 v
             );
             panic!(
-                "Unexpected Cassandra verion. Should has {} byte(-s), got {:?}",
+                "Unexpected Cassandra version. Should has {} byte(-s), got {:?}",
                 Self::BYTE_LENGTH,
                 v
             );
@@ -348,12 +348,14 @@ mod tests {
     use crate::frame::traits::AsByte;
 
     #[test]
-    #[cfg(not(feature = "v3"))]
+    #[cfg(feature = "v4")]
     fn test_frame_version_as_byte() {
         let request_version = Version::Request;
         assert_eq!(request_version.as_byte(), 0x04);
         let response_version = Version::Response;
         assert_eq!(response_version.as_byte(), 0x84);
+        let response_version = Version::Other( 0x42 );
+        assert_eq!(response_version.as_byte(), 0x42);
     }
 
     #[test]
@@ -363,10 +365,12 @@ mod tests {
         assert_eq!(request_version.as_byte(), 0x03);
         let response_version = Version::Response;
         assert_eq!(response_version.as_byte(), 0x83);
+        let response_version = Version::Other( 0x42 );
+        assert_eq!(response_version.as_byte(), 0x42);
     }
 
     #[test]
-    #[cfg(not(feature = "v3"))]
+    #[cfg(feature = "v4")]
     fn test_frame_version_from() {
         let request: Vec<u8> = vec![0x04];
         assert_eq!(Version::from(request), Version::Request);
@@ -380,6 +384,23 @@ mod tests {
         let request: Vec<u8> = vec![0x03];
         assert_eq!(Version::from(request), Version::Request);
         let response: Vec<u8> = vec![0x83];
+        assert_eq!(Version::from(response), Version::Response);
+        let request: Vec<u8> = vec![0x04];
+        assert_eq!(Version::from(request), Version::Other( 0x04 ));
+        let response: Vec<u8> = vec![0x84];
+        assert_eq!(Version::from(response), Version::Other( 0x84 ));
+    }
+
+    #[test]
+    #[cfg(feature = "v4")]
+    fn test_frame_version_from_v3() {
+        let request: Vec<u8> = vec![0x03];
+        assert_eq!(Version::from(request), Version::Other( 0x03 ));
+        let response: Vec<u8> = vec![0x83];
+        assert_eq!(Version::from(response), Version::Other( 0x83 ));
+        let request: Vec<u8> = vec![0x04];
+        assert_eq!(Version::from(request), Version::Request);
+        let response: Vec<u8> = vec![0x84];
         assert_eq!(Version::from(response), Version::Response);
     }
 
