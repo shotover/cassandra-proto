@@ -205,7 +205,7 @@ fn read_body<E>(
 where
     E: std::error::Error,
 {
-    if (src.len() < frame_header.length) {
+    if src.len() < frame_header.length {
         return Err(make_server_error( "Not enough data for body"));
     }
     let mut cursor = Cursor::new(src.split_to(frame_header.length));
@@ -767,10 +767,10 @@ mod tests {
 
         let r = parse_frame( &mut buf, &compression, None  );
         assert_eq!( r.is_ok(), true );
-        let (frameOpt, headerOpt) = r.unwrap() ;
-        assert_eq!(frameOpt.is_some(), true );
-        assert_eq!(headerOpt.is_none(), true );
-        let frame = frameOpt.unwrap();
+        let (frame_opt, header_opt) = r.unwrap() ;
+        assert_eq!(frame_opt.is_some(), true );
+        assert_eq!(header_opt.is_none(), true );
+        let frame = frame_opt.unwrap();
         assert_eq!( frame.flags.contains( &Flag::Tracing), true );
         assert_eq!( frame.flags.contains( &Flag::Warning), true );
         assert_eq!( frame.stream, 0x0102);
