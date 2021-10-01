@@ -21,7 +21,7 @@ log = "0.4.1"
 rand = "0.4.1"
 snap = "0.2.3"
 time = "0.1.38"
-uuid = "0.8"
+uuid = { version = "0.8", features = ["serde", "v4"] }
 num_enum = "0.4.2"
 syn = "1.0"
 quote = "1.0"

@@ -53,6 +53,7 @@ fn read_header(src: &mut BytesMut) -> Result<Option<FrameHeader>, CDRSError> {
             let v = Version::from(*x);
             match v {
                 Version::Other(_c) => {
+                    // do not change error string, it is part of the defined protocol
                     return Err(make_protocol_error(
                         "Invalid or unsupported protocol version",
                     ))
@@ -204,6 +205,9 @@ fn read_body<E>(
 where
     E: std::error::Error,
 {
+    if (src.len() < frame_header.length) {
+        return Err(make_server_error( "Not enough data for body"));
+    }
     let mut cursor = Cursor::new(src.split_to(frame_header.length));
     let mut body_bytes = Vec::with_capacity(frame_header.length);
     unsafe {
@@ -219,7 +223,7 @@ where
         Ok(if Flag::has_compression(frame_header.flags) {
             compressor
                 .decode(body_bytes)
-                .map_err(|x| make_server_error(&x.to_string()))?
+                .map_err(|x| make_server_error(&*format!("{} while reading body", x.to_string())))?
         } else {
             body_bytes
         })
@@ -245,7 +249,7 @@ fn extract_tracing_id(
 
         let x = cursor
             .read_exact(&mut tracing_bytes)
-            .map_err(|x| make_server_error(&x.to_string()));
+            .map_err(|x| make_server_error(&*format!("{} while reading tracing id", x.to_string())));
 
         if x.is_err() {
             Err(x.unwrap_err())
@@ -273,7 +277,7 @@ fn extract_warnings(
 ) -> Result<Vec<String>, CDRSError> {
     if Flag::has_warning(frame_header.flags) {
         CStringList::from_cursor(cursor)
-            .map_err(|x| make_server_error(&x.to_string()))
+            .map_err(|x| make_server_error(&*format!("{} while extracting warnings", x.to_string())))
             .map(|x| x.into_plain())
     } else {
         Ok(vec![])
@@ -285,7 +289,7 @@ fn extract_body(cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, CDRSError> {
     let mut body = vec![];
     let x = cursor
         .read_to_end(&mut body)
-        .map_err(|x| make_server_error(&x.to_string()));
+        .map_err(|x| make_server_error(&*format!("{} while extracting body", x.to_string())));
     if x.is_err() {
         Err(x.unwrap_err())
     } else {
@@ -302,3 +306,481 @@ fn extract_body(cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, CDRSError> {
 //        _ => Ok((Some(frame), None)),
 //    }
 //}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frame::traits::AsByte;
+    use bytes::{BytesMut, BufMut};
+    use crate::compressors::no_compression::NoCompression;
+
+
+    #[test]
+    #[cfg(not(feature = "v3"))]
+    fn test_frame_version_as_byte() {
+        let request_version = Version::Request;
+        assert_eq!(request_version.as_byte(), 0x04);
+        let response_version = Version::Response;
+        assert_eq!(response_version.as_byte(), 0x84);
+    }
+
+    #[test]
+    fn test_read_header_invalid_version() {
+        let mut buf = BytesMut::with_capacity(64);
+
+        buf.put_u8(0x42);
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_err(), true );
+        let err = r.unwrap_err() ;
+        assert_eq!( err.error_code, 0x000A ); // protocol error
+        assert_eq!( err.message.as_str(), "Invalid or unsupported protocol version" );
+    }
+
+    #[test]
+    fn test_read_header_no_header() {
+        let mut buf = BytesMut::with_capacity(64);
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_none(), true ); // no header read
+    }
+
+    #[test]
+    fn test_read_header() {
+        let mut buf = BytesMut::with_capacity(64);
+
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 ); // flags
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 500 ); // length
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.version, Version::Request );
+        assert_eq!( header.flags, 0x2 );
+        assert_eq!( header.stream, 0x0102 );
+        assert_eq!( header.opcode, Opcode::Options );
+        assert_eq!( header.length, 500 );
+    }
+
+
+    #[test]
+    fn test_read_body() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 ); // flags (Tracing)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 11 ); // length
+
+        // put in the body
+        buf.put( "Hello World".as_bytes());
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.version, Version::Request );
+        assert_eq!( header.flags, 0x2 );
+        assert_eq!( header.stream, 0x0102 );
+        assert_eq!( header.opcode, Opcode::Options );
+        assert_eq!( header.length, 11 );
+        let b = read_body( &header, &compression, &mut buf );
+        assert_eq!( b.is_ok(), true );
+        let body = b.unwrap();
+        assert_eq!( body.as_slice(), "Hello World".as_bytes());
+    }
+
+    #[test]
+    fn test_read_short_body() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 ); // flags (Tracing)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 15 ); // length
+
+        // put in the body
+        buf.put( "Hello World".as_bytes());
+        let r = read_header(&mut buf);
+        let header = r.unwrap().unwrap();
+        assert_eq!( header.length, 15 );
+        let b = read_body( &header, &compression, &mut buf );
+        assert_eq!( b.is_err(), true );
+        let err = b.unwrap_err();
+        assert_eq!( err.error_code, 0x0000 ); // server error
+        assert_eq!( err.message.as_str(), "Not enough data for body" );
+    }
+
+    #[test]
+    fn test_read_long_body() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 ); // flags (Tracing)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 11 ); // length
+
+        // put in the body
+        buf.put( "Hello WorldNow is the time".as_bytes());
+        let r = read_header(&mut buf);
+        let header = r.unwrap().unwrap();
+        assert_eq!( header.length, 11 );
+        let b = read_body( &header, &compression, &mut buf );
+        assert_eq!( b.is_ok(), true );
+        let body = b.unwrap();
+        assert_eq!( body.as_slice(), "Hello World".as_bytes());
+        assert_eq!( buf.len(), 15);
+    }
+
+    #[test]
+    fn test_extract_tracing_id() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 ); // flags (Tracing)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 19 ); // length
+
+        let uuid  = Uuid::new_v4();
+        for i in uuid.as_bytes() {
+            buf.put_u8(*i);
+        }
+        // put in the body
+        buf.put( "Hello World".as_bytes());
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.flags, 0x2 );
+        assert_eq!( header.length, 19 );
+        let b = read_body( &header, &compression, &mut buf );
+        let v = b.unwrap();
+        let mut cursor = Cursor::new(v.as_slice());
+        let r = extract_tracing_id( &header, &mut cursor);
+        assert_eq!( r.is_ok(), true );
+        assert_eq!( r.unwrap().unwrap(), uuid);
+    }
+
+    #[test]
+    fn test_extract_tracing_id_no_flag() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x0 ); // flags
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 11 ); // length
+
+        // put in the body
+        buf.put( "Hello World".as_bytes());
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.flags, 0x0 );
+        assert_eq!( header.length, 11 );
+        let b = read_body( &header, &compression, &mut buf );
+        let v = b.unwrap();
+        let mut cursor = Cursor::new(v.as_slice());
+        let r = extract_tracing_id( &header, &mut cursor);
+        assert_eq!( r.is_ok(), true );
+        assert_eq!( r.unwrap().is_none(), true);
+    }
+
+    #[test]
+    fn test_extract_tracing_id_no_data() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 ); // flags (Tracing)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 0 ); // length
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.flags, 0x2 );
+        assert_eq!( header.length, 0 );
+        let b = read_body( &header, &compression, &mut buf );
+        let v = b.unwrap();
+        let mut cursor = Cursor::new(v.as_slice());
+        let r = extract_tracing_id( &header, &mut cursor);
+        assert_eq!( r.is_err(), true );
+        let err = r.unwrap_err();
+        assert_eq!( err.error_code, 0x0000 ); // server error
+        assert_eq!( err.message.as_str(), "failed to fill whole buffer while reading tracing id" );
+    }
+
+    #[test]
+    fn test_extract_warnings() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x8 ); // flags (Warning)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 2+11+2+16+13 ); // length (see segments below)
+
+        // string list comprising 2 strings
+        buf.put_u16( 2 );
+        // put in hello world
+        buf.put_u16( 11);
+        buf.put( "Hello World".as_bytes());
+        // put in "now is the time.."
+        buf.put_u16( 16 );
+        buf.put( "Now is the time.".as_bytes());
+
+        // put in the body (13 bytes)
+        buf.put( "What is this?".as_bytes());
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.flags, 0x8 );
+        assert_eq!( header.length, 2+11+2+16+13 );
+        let b = read_body( &header, &compression, &mut buf );
+        let v = b.unwrap();
+        let mut cursor = Cursor::new(v.as_slice());
+        let r = extract_warnings( &header, &mut cursor);
+        assert_eq!( r.is_ok(), true );
+        let warnings = r.unwrap();
+        assert_eq!( warnings[0], "Hello World");
+        assert_eq!( warnings[1], "Now is the time.");
+    }
+
+    #[test]
+    fn test_extract_warnings_no_flag() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x0 ); // flags
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 2+11+2+16+13 ); // length (see segments below)
+
+        // string list comprising 2 strings
+        buf.put_u16( 2 );
+        // put in hello world
+        buf.put_u16( 11);
+        buf.put( "Hello World".as_bytes());
+        // put in "now is the time.."
+        buf.put_u16( 16 );
+        buf.put( "Now is the time.".as_bytes());
+
+        // put in the body (13 bytes)
+        buf.put( "What is this?".as_bytes());
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.flags, 0x0 );
+        assert_eq!( header.length, 2+11+2+16+13 );
+        let b = read_body( &header, &compression, &mut buf );
+        let v = b.unwrap();
+        let mut cursor = Cursor::new(v.as_slice());
+        let r = extract_warnings( &header, &mut cursor);
+        assert_eq!( r.is_ok(), true );
+        let warnings = r.unwrap();
+        assert_eq!( warnings.len(), 0);
+    }
+
+    #[test]
+    fn test_extract_warnings_no_data() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x08 ); // flags (Warnings)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        buf.put_u32( 0 ); // length
+
+
+        let r = read_header(&mut buf);
+        assert_eq!( r.is_ok(), true );
+        let opt = r.unwrap() ;
+        assert_eq!(opt.is_some(), true ); // no header read
+        let header = opt.unwrap();
+        assert_eq!( header.flags, 0x8 );
+        assert_eq!( header.length, 0 );
+        let b = read_body( &header, &compression, &mut buf );
+        let v = b.unwrap();
+        let mut cursor = Cursor::new(v.as_slice());
+        let r = extract_warnings( &header, &mut cursor);
+        assert_eq!( r.is_err(), true );
+        let err = r.unwrap_err();
+        assert_eq!( err.error_code, 0x0000 ); // server error
+        assert_eq!( err.message.as_str(), "IO error: failed to fill whole buffer while extracting warnings" );
+    }
+
+    /*
+    pub fn parse_frame<E>(
+    mut src: &mut BytesMut,
+    compressor: &dyn Compressor<CompressorError = E>,
+    frame_header_original: Option<FrameHeader>,
+) -> Result<(Option<Frame>, Option<FrameHeader>), CDRSError>
+     */
+    #[test]
+    fn test_parse_frame() {
+        let mut buf = BytesMut::with_capacity(64);
+        let compression = NoCompression::new();
+
+        // put in the header
+        /*
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
+      |                length                 |
+      +---------+---------+---------+---------+
+         */
+        buf.put_u8(0x4); // version
+        buf.put_u8( 0x2 | 0x8 ); // flags (Tracing & Warnings)
+        buf.put_u16( 0x0102 ); //stream
+        buf.put_u8( 0x05 ); // opcode (Option)
+        let len = 16+2+2+11+2+16+13;
+        buf.put_u32( len ); // length (see segments below)
+
+        let uuid  = Uuid::new_v4(); // 16 bytes
+        for i in uuid.as_bytes() {
+            buf.put_u8(*i);
+        }
+
+        // string list comprising 2 strings
+        buf.put_u16( 2 );   // 2 bytes
+        // put in hello world
+        buf.put_u16( 11);   // 2 bytes
+        buf.put( "Hello World".as_bytes()); // 11 bytes
+        // put in "now is the time.."
+        buf.put_u16( 16 );   // 2 bytes
+        buf.put( "Now is the time.".as_bytes()); // 16 bytes
+
+        // put in the body (13 bytes)
+        buf.put( "What is this?".as_bytes());  // 13 bytes
+
+
+        let r = parse_frame( &mut buf, &compression, None  );
+        assert_eq!( r.is_ok(), true );
+        let (frameOpt, headerOpt) = r.unwrap() ;
+        assert_eq!(frameOpt.is_some(), true );
+        assert_eq!(headerOpt.is_none(), true );
+        let frame = frameOpt.unwrap();
+        assert_eq!( frame.flags.contains( &Flag::Tracing), true );
+        assert_eq!( frame.flags.contains( &Flag::Warning), true );
+        assert_eq!( frame.stream, 0x0102);
+        assert_eq!( frame.opcode, Opcode::Options);
+        assert_eq!( frame.tracing_id.is_some(), true);
+        assert_eq!( frame.tracing_id.unwrap(), uuid );
+        assert_eq!( frame.warnings.len(), 2 );
+        assert_eq!( frame.warnings[0], "Hello World" );
+        assert_eq!( frame.warnings[1], "Now is the time." );
+        assert_eq!( frame.body, "What is this?".as_bytes());
+    }
+
+}
