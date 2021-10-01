@@ -1,7 +1,7 @@
 use crate::compression::Compressor;
 use crate::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct NoCompression {}
 
 impl NoCompression {
