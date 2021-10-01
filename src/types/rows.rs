@@ -28,8 +28,7 @@ impl Row {
             .map(|row| Row {
                 metadata: body.metadata.clone(),
                 row_content: row.clone(),
-            })
-            .collect()
+            }).collect()
     }
 
     fn get_col_spec_by_name(&self, name: &str) -> Option<(&ColSpec, &CBytes)> {

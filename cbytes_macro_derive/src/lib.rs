@@ -1,9 +1,9 @@
 extern crate proc_macro;
 
-use proc_macro::TokenStream;
 use quote::quote;
+use proc_macro::TokenStream;
+use syn::{DeriveInput};
 use syn::Data;
-use syn::DeriveInput;
 
 #[proc_macro_derive(IntoCbytes)]
 pub fn into_cbytes_derivce(input: TokenStream) -> TokenStream {
@@ -17,15 +17,16 @@ pub fn into_cbytes_derivce(input: TokenStream) -> TokenStream {
                 if let Some(name) = field.ident {
                     //handle Optional types
                     let gen = quote! {
-                        v.extend(self.#name.into_cbytes());
+                    v.extend(self.#name.into_cbytes());
 
-                    };
+                };
                     fields.push(gen);
                 }
             }
         }
         _ => {}
     }
+
 
     let gen = quote! {
         impl IntoBytes for #name {

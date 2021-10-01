@@ -15,9 +15,9 @@ pub mod query;
 pub mod types;
 
 pub mod compression;
-pub mod compressors;
 pub mod consistency;
 pub mod error;
+pub mod compressors;
 // mod cbytes_deriver;
 
 pub type Error = error::Error;

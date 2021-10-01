@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
-use crate::error;
 use crate::frame::FromCursor;
+use crate::error;
 use crate::types::CString;
 
 /// A server authentication challenge.
@@ -12,17 +12,15 @@ pub struct BodyResAuthenticate {
 
 impl FromCursor for BodyResAuthenticate {
     fn from_cursor(mut cursor: &mut Cursor<&[u8]>) -> error::Result<BodyResAuthenticate> {
-        Ok(BodyResAuthenticate {
-            data: CString::from_cursor(&mut cursor)?,
-        })
+        Ok(BodyResAuthenticate { data: CString::from_cursor(&mut cursor)?, })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::traits::FromCursor;
     use std::io::Cursor;
+    use crate::frame::traits::FromCursor;
 
     #[test]
     fn body_res_authenticate() {

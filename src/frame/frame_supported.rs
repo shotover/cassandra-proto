@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
-use crate::error;
 use crate::frame::FromCursor;
+use crate::error;
 use crate::types::{cursor_next_value, try_from_bytes, CString, CStringList, SHORT_LEN};
 
 #[derive(Debug)]
@@ -27,18 +27,27 @@ impl FromCursor for BodyResSupported {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::frame::traits::FromCursor;
     use std::io::Cursor;
+    use crate::frame::traits::FromCursor;
+    use super::*;
 
     #[test]
     fn test_name() {
-        let bytes = [
-            0, 1, // n options
-            // 1-st option
-            0, 2, 97, 98, // key [string] "ab"
-            0, 2, 0, 1, 97, 0, 1, 98, /* value ["a", "b"] */
-        ];
+        let bytes = [0,
+                     1, // n options
+                     // 1-st option
+                     0,
+                     2,
+                     97,
+                     98, // key [string] "ab"
+                     0,
+                     2,
+                     0,
+                     1,
+                     97,
+                     0,
+                     1,
+                     98 /* value ["a", "b"] */];
         let mut cursor: Cursor<&[u8]> = Cursor::new(&bytes);
         let options = BodyResSupported::from_cursor(&mut cursor).unwrap().data;
         assert_eq!(options.len(), 1);

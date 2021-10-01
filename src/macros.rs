@@ -28,7 +28,8 @@ macro_rules! query_values {
 #[macro_export]
 macro_rules! builder_opt_field {
     ($field:ident, $field_type:ty) => {
-        pub fn $field(mut self, $field: $field_type) -> Self {
+        pub fn $field(mut self,
+                          $field: $field_type) -> Self {
             self.$field = Some($field);
             self
         }
