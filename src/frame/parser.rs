@@ -9,7 +9,7 @@ use bytes::BytesMut;
 use std::io::{Cursor, Read};
 use uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FrameHeader {
     version: Version,
     flags: u8, //Vec<Flag>,
