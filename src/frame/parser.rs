@@ -134,7 +134,7 @@ fn read_header(src: &mut BytesMut) -> Result<Option<FrameHeader>, CDRSError> {
 pub fn parse_frame<E>(
     mut src: &mut BytesMut,
     compressor: &dyn Compressor<CompressorError = E>,
-    frame_header_original: &Option<FrameHeader>,
+    frame_header_original: Option<&FrameHeader>,
 ) -> Result<(Option<Frame>, Option<FrameHeader>), CDRSError>
 where
     E: std::error::Error,
