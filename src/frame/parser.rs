@@ -9,7 +9,7 @@ use bytes::BytesMut;
 use std::io::{Cursor, Read};
 use uuid;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct FrameHeader {
     version: Version,
     flags: u8, //Vec<Flag>,
@@ -134,7 +134,7 @@ fn read_header(src: &mut BytesMut) -> Result<Option<FrameHeader>, CDRSError> {
 pub fn parse_frame<E>(
     mut src: &mut BytesMut,
     compressor: &dyn Compressor<CompressorError = E>,
-    frame_header_original: Option<FrameHeader>,
+    frame_header_original: &Option<FrameHeader>,
 ) -> Result<(Option<Frame>, Option<FrameHeader>), CDRSError>
 where
     E: std::error::Error,
@@ -145,7 +145,7 @@ where
     // and have already extracted the header.
 
     let frame_header: FrameHeader = match frame_header_original {
-        Some(x) => x,
+        Some(x) => x.clone(),
         None => {
             let r = read_header(src);
             if r.is_err() {
