@@ -9,7 +9,7 @@ use crate::error;
 use crate::consistency::Consistency;
 use crate::types::*;
 use crate::frame::traits::FromCursor;
-use crate::frame::Frame;
+use crate::frame::{Frame, IntoBytes};
 
 /// CDRS specific `Result` which contains a [`Frame`] in case of `Ok` and `CDRSError` if `Err`.
 ///
@@ -131,6 +131,32 @@ impl AdditionalErrorInfo {
     }
 }
 
+impl IntoBytes for AdditionalErrorInfo {
+    fn into_cbytes(&self) -> Vec<u8> {
+        match self {
+            AdditionalErrorInfo::Server(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Protocol(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Authentication(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Unavailable(e) => e.into_cbytes(),
+            AdditionalErrorInfo:: Overloaded(e) => e.into_cbytes(),
+            AdditionalErrorInfo::IsBootstrapping(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Truncate(e) => e.into_cbytes(),
+            AdditionalErrorInfo::WriteTimeout(e) => e.into_cbytes(),
+            AdditionalErrorInfo::ReadTimeout(e) => e.into_cbytes(),
+            AdditionalErrorInfo::ReadFailure(e) => e.into_cbytes(),
+            AdditionalErrorInfo::FunctionFailure(e) => e.into_cbytes(),
+            AdditionalErrorInfo::WriteFailure(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Syntax(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Unauthorized(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Invalid(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Config(e) => e.into_cbytes(),
+            AdditionalErrorInfo::AlreadyExists(e) => e.into_cbytes(),
+            AdditionalErrorInfo::Unprepared(e) => e.into_cbytes(),
+        }
+
+    }
+}
+
 /// Is used if error does not contain any additional info.
 #[derive(Debug)]
 pub struct SimpleError {}
@@ -138,6 +164,12 @@ pub struct SimpleError {}
 impl FromCursor for SimpleError {
     fn from_cursor(mut _cursor: &mut io::Cursor<&[u8]>) -> error::Result<SimpleError> {
         Ok(SimpleError {})
+    }
+}
+
+impl IntoBytes for SimpleError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![]
     }
 }
 
@@ -163,6 +195,11 @@ impl FromCursor for UnavailableError {
         Ok(UnavailableError { cl: cl,
                               required: required,
                               alive: alive, })
+    }
+}
+impl IntoBytes for UnavailableError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.cl.into_cbytes(), self.required.into_cbytes(), self.alive.into_cbytes()].concat()
     }
 }
 
@@ -193,6 +230,12 @@ impl FromCursor for WriteTimeoutError {
     }
 }
 
+impl IntoBytes for WriteTimeoutError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.cl.into_cbytes(), self.received.into_cbytes(), self.blockfor.into_cbytes(),
+        self.write_type.into_cbytes()].concat()
+    }
+}
 /// Timeout exception during a read request.
 #[derive(Debug)]
 pub struct ReadTimeoutError {
@@ -226,6 +269,12 @@ impl FromCursor for ReadTimeoutError {
     }
 }
 
+impl IntoBytes for ReadTimeoutError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.cl.into_cbytes(), self.received.into_cbytes(), self.blockfor.into_cbytes(),
+             vec![self.data_present]].concat()
+    }
+}
 /// A non-timeout exception during a read request.
 #[derive(Debug)]
 pub struct ReadFailureError {
@@ -262,6 +311,12 @@ impl FromCursor for ReadFailureError {
                               data_present: data_present, })
     }
 }
+impl IntoBytes for ReadFailureError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.cl.into_cbytes(), self.received.into_cbytes(), self.blockfor.into_cbytes(),
+             self.num_failures.into_cbytes(), vec![self.data_present]].concat()
+    }
+}
 
 /// A (user defined) function failed during execution.
 #[derive(Debug)]
@@ -286,6 +341,11 @@ impl FromCursor for FunctionFailureError {
     }
 }
 
+impl IntoBytes for FunctionFailureError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.keyspace.into_cbytes(), self.function.into_cbytes(), self.arg_types.into_cbytes()].concat()
+    }
+}
 /// A non-timeout exception during a write request.
 /// [Read more...](https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec#L1106)
 #[derive(Debug)]
@@ -315,6 +375,13 @@ impl FromCursor for WriteFailureError {
                                blockfor: blockfor,
                                num_failures: num_failures,
                                write_type: write_type, })
+    }
+}
+
+impl IntoBytes for WriteFailureError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.cl.into_cbytes(), self.received.into_cbytes(), self.blockfor.into_cbytes(),
+        self.num_failures.into_cbytes(), self.write_type.into_cbytes()].concat()
     }
 }
 
@@ -352,6 +419,20 @@ impl FromCursor for WriteType {
     }
 }
 
+impl IntoBytes for WriteType {
+    fn into_cbytes(&self) -> Vec<u8> {
+        match self {
+            WriteType::Simple => CString::new(String::from("SIMPLE")).into_cbytes(),
+            WriteType::Batch => CString::new(String::from("BATCH")).into_cbytes(),
+            WriteType::UnloggedBatch => CString::new(String::from("UNLOGGED_BATCH")).into_cbytes(),
+            WriteType::Counter => CString::new(String::from("COUNTER")).into_cbytes(),
+            WriteType::BatchLog => CString::new(String::from("BATCH_LOG")).into_cbytes(),
+        }
+    }
+}
+
+
+
 /// The query attempted to create a keyspace or a table that was already existing.
 /// [Read more...](https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec#L1140)
 #[derive(Debug)]
@@ -373,6 +454,13 @@ impl FromCursor for AlreadyExistsError {
     }
 }
 
+impl IntoBytes for AlreadyExistsError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        vec![self.ks.into_cbytes(), self.table.into_cbytes()].concat()
+    }
+}
+
+
 /// Can be thrown while a prepared statement tries to be
 /// executed if the provided prepared statement ID is not known by
 /// this host. [Read more...]
@@ -388,5 +476,11 @@ impl FromCursor for UnpreparedError {
         let id = CBytesShort::from_cursor(&mut cursor)?;
 
         Ok(UnpreparedError { id: id })
+    }
+}
+
+impl IntoBytes for UnpreparedError {
+    fn into_cbytes(&self) -> Vec<u8> {
+        self.id.into_cbytes()
     }
 }
