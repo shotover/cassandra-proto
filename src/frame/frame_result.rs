@@ -290,6 +290,7 @@ pub struct RowsMetadata {
 impl IntoBytes for RowsMetadata {
     fn into_cbytes(&self) -> Vec<u8> {
         let mut temp: Vec<u8> = Vec::new();
+        temp.extend(ResultKind::Rows.into_cbytes());
         temp.extend_from_slice(&self.flags.to_be_bytes());
         temp.extend_from_slice(&self.columns_count.to_be_bytes());
         if let Some(ref state) = self.paging_state {

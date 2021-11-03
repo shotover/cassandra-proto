@@ -582,7 +582,7 @@ impl IntoBytes for CBytes {
                 v.extend_from_slice(b.as_slice());
                 v
             }
-            None => vec![],
+            None => vec![255, 255, 255, 255], // If NULL set to -1
         }
     }
 }
