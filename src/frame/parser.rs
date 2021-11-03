@@ -43,7 +43,7 @@ fn read_header(src: &mut BytesMut) -> Result<Option<FrameHeader>, CDRSError> {
 
     // Make sure we have some data
     if src.len() == 0 {
-        return Ok(None);
+        return None;
     }
     // we have at least one byte so read the version.  We read the version byte first so that
     // we can handle versions that have a different header size properly by reporting them as
@@ -152,8 +152,8 @@ where
                 return r.map(|_y| (None, None));
             } else {
                 match r.ok() {
-                    Some(x) => x.unwrap(),
-                    None => return Ok((None, None)),
+                    Some(Some(x)) => x,
+                    _ => return Ok((None, None)),
                 }
             }
         }
