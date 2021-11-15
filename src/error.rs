@@ -51,9 +51,15 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
+            // TODO: Rewrite to avoid use of deprecated description method.
+            // Doing this would require entirely rewriting the error API
+            // due to the suggested replacements for description returning a String instead of &str
+            // So we should come back later and replace cassandra-protocol error handling with thiserror or similar.
+            #[allow(deprecated)]
             Error::Io(ref err) => err.description(),
             Error::Compression(ref err) => err.as_str(),
             Error::Server(ref err) => err.message.as_str(),
+            #[allow(deprecated)]
             Error::FromUtf8(ref err) => err.description(),
             // FIXME: err.description not found in current scope, std::error::Error not satisfied
             Error::UUIDParse(_) => "UUID Parse Error",
